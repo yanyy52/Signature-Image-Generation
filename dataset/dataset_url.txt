@@ -1,0 +1,4 @@
+CEDAR: http://www.cedar.buffalo.edu/NIJ/data/signatures.rar
+BHSig260: https://goo.gl/9QfByd
+MSDS: https://github.com/HCIILAB/MSDS
+SigComp2011: http://www.iapr-tc11.org/mediawiki/index.php/ICDAR_2011_Signature_Verification_Competition_(SigComp2011)
