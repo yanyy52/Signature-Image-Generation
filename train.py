@@ -16,9 +16,8 @@ from torch.utils.data import DataLoader
 from torchvision import datasets
 from torch.autograd import Variable
 
-# import cycleGan.model
 from imageDataset import *
-from pix2pix import *
+from model import *
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -44,8 +43,8 @@ parser.add_argument("--checkpoint_interval", type=int, default=-1, help="interva
 opt = parser.parse_args()
 print(opt)
 
-# os.makedirs("imagesP2P/%s" % opt.dataset_name, exist_ok=True)
-# os.makedirs("saveP2P/%s" % opt.dataset_name, exist_ok=True)
+# os.makedirs("images/%s" % opt.dataset_name, exist_ok=True)
+# os.makedirs("save/%s" % opt.dataset_name, exist_ok=True)
 
 cuda = True if torch.cuda.is_available() else False
 
@@ -57,28 +56,19 @@ criterion_ab = torch.nn.MSELoss()
 # Loss weight of L1 pixel-wise loss between translated image and real image
 lambda_pixel = 10
 
-# Calculate output of image discriminator (PatchGAN)
 patch = (1, opt.img_height // 2 ** 4, opt.img_width // 2 ** 4)
 
-# Initialize generator and discriminator
-# generator = GeneratorUNet()
 discriminator = Discriminator()
 input_shape = (opt.channels, opt.img_height, opt.img_width)
 
 ## 创建生成器，判别器对象
 generator = GeneratorResNet(input_shape, 9)
-# model = cycleGan.model.Discriminator(input_shape)
-
-# vae = VAE_encoder()
-
 if cuda:
     generator = generator.cuda()
     discriminator = discriminator.cuda()
     criterion_GAN.cuda()
     criterion_pixelwise.cuda()
     criterion_ab.cuda()
-    # vae.cuda()
-    # model.cuda()
 
 is_pretrain=True
 # Initialize weights
@@ -88,8 +78,6 @@ discriminator.apply(weights_init_normal)
 # Optimizers
 optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
 optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
-# optimizer_G = torch.optim.RMSprop(generator.parameters(), lr=opt.lr)
-# optimizer_D = torch.optim.RMSprop(discriminator.parameters(), lr=opt.lr)
 
 # Configure dataloaders
 transforms_ = [
@@ -100,7 +88,7 @@ transforms_ = [
 
 ## Training data loader
 dataloader = DataLoader(  ## 改成自己存放文件的目录
-    ImageDatasetP2P("/home/zy/HandWriting/Handwritten-Signature-Verification-master/dataset/CEDAR/full_org_pro_zhijie/", transforms_=transforms_, train=True),
+    ImageDatasetP2P("/dataset/CEDAR/", transforms_=transforms_, train=True),
     ## "./datasets/facades" , unaligned:设置非对其数据
     batch_size=opt.batch_size,  ## batch_size = 1
     shuffle=True,
@@ -108,7 +96,7 @@ dataloader = DataLoader(  ## 改成自己存放文件的目录
 )
 ## Test data loader
 val_dataloader = DataLoader(
-    ImageDatasetP2P("/home/zy/HandWriting/Handwritten-Signature-Verification-master/dataset/CEDAR/full_org_pro_zhijie/", transforms_=transforms_, train=True),  ## "./datasets/facades"
+    ImageDatasetP2P("/dataset/CEDAR/", transforms_=transforms_, train=True),
     batch_size=5,
     shuffle=True,
     num_workers=1,
@@ -123,12 +111,7 @@ def sample_images(batches_done):
     # real_A = Variable(imgs["B"].type(Tensor))
     real_B = Variable(imgs["B"].type(Tensor))
     real_A = Variable(imgs["A"].type(Tensor))
-    # noise = torch.randn(5, 3, 256, 256).cuda()
-    # noise = vae(real_B)
-    fake_B = generator(real_A, real_B)
-    # fake_B = generator(real_A)
-    # img_sample = torch.cat((real_A.data, real_B.data, fake_B.data), -2)
-    # save_image(img_sample, "imagesP2P/%s.png" % (batches_done), nrow=5, normalize=True)
+    fake_B = generator(real_A, real_A)
 
     real_A = make_grid(real_A, nrow=5, normalize=True)
     real_B = make_grid(real_B, nrow=5, normalize=True)
@@ -139,23 +122,16 @@ def sample_images(batches_done):
 
     save_image(image_grid, "imagesTestP2P/%s.png" % (batches_done), normalize=False)
 
-
-def triplet_loss(anchor, positive, negative, margin=1.0):
-    distance_pos = F.pairwise_distance(anchor, positive, p=2)
-    distance_neg = F.pairwise_distance(anchor, negative, p=2)
-    loss = F.relu(distance_pos - distance_neg + margin)
-    return loss.mean()
-
 matplotlib.use('Agg')
 # ----------
 #  Training
 # ----------
 # if is_pretrain:
-#         checkpoint_G_AB = torch.load("saveP2P/generator_1.pth")
-#         generator.load_state_dict(checkpoint_G_AB)
+#         checkpoint_G_AB = torch.load("save/generator.pth")
+#         generator.load_state_dict(checkpoint_G)
 #
-#         checkpoint_D_A = torch.load("saveP2P/discriminator.pth")
-#         discriminator.load_state_dict(checkpoint_D_A)
+#         checkpoint_D_A = torch.load("save/discriminator.pth")
+#         discriminator.load_state_dict(checkpoint_D)
 
 prev_time = time.time()
 Loss_D_list = []
@@ -172,8 +148,6 @@ for epoch in range(opt.epoch, opt.n_epochs):
         # Model inputs
         real_A = Variable(batch["A"].type(Tensor))
         real_B = Variable(batch["B"].type(Tensor))
-        # feature_map_np = real_A[0, 0].squeeze().detach().cpu().numpy()
-        # plt.imsave("x1.png", feature_map_np)
 
         # Adversarial ground truths
         valid = Variable(Tensor(np.ones((real_A.size(0), *patch))), requires_grad=False)
@@ -186,8 +160,6 @@ for epoch in range(opt.epoch, opt.n_epochs):
         optimizer_G.zero_grad()
 
         # GAN loss
-        # noise = torch.randn(opt.batch_size, 256, 64, 64).cuda()
-        # noise = vae(real_B)
         fake_B = generator(real_A, real_B)
 
         pred_fake1 = discriminator(fake_B, real_A)
@@ -196,7 +168,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
         loss_ab = criterion_ab(pred_fake1, pred_fake2)
 
         # Pixel-wise loss
-        loss_pixel = criterion_pixelwise(fake_B, real_B)
+        loss_pixel = criterion_pixelwise(fake_B, real_A)
 
         # Total loss
         loss_G = loss_GAN + lambda_pixel * loss_pixel + loss_ab
@@ -220,14 +192,8 @@ for epoch in range(opt.epoch, opt.n_epochs):
         loss_fake1 = criterion_GAN(pred_fake1, fake)
         pred_fake2 = discriminator(fake_B.detach(), real_B)
         loss_fake2 = criterion_GAN(pred_fake2, fake)
-        # anchor_features = model(real_A)
-        # positive_features = model(real_B)
-        # negative_features = model(fake_B.detach())
-        # loss_fake = triplet_loss(anchor_features, positive_features, negative_features)
-
+        
         # Total loss
-        # loss_D = 0.5 * (loss_real + loss_fake)
-        # loss_D = loss_real + loss_fake
         loss_fake = loss_fake1 + loss_fake2
         loss_D = loss_real + loss_fake1 + loss_fake2
 
@@ -301,7 +267,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
     plt.xlabel("Iterations")
     plt.ylabel("Loss")
     plt.legend()
-    plt.savefig("lossTestP2P/Training Loss_D")
+    plt.savefig("loss/Training Loss_D")
 
     plt.figure()
     plt.plot(Loss_G_list, label='Loss_G')
@@ -309,7 +275,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
     plt.xlabel("Iterations")
     plt.ylabel("Loss")
     plt.legend()
-    plt.savefig("lossTestP2P/Training Loss_G")
+    plt.savefig("loss/Training Loss_G")
 
     plt.figure()
     plt.plot(Loss_D_list, label='Loss_D')
@@ -318,7 +284,7 @@ for epoch in range(opt.epoch, opt.n_epochs):
     plt.xlabel("Iterations")
     plt.ylabel("Loss")
     plt.legend()
-    plt.savefig("lossTestP2P/Training All Loss(iter)")
+    plt.savefig("loss/Training All Loss(iter)")
 
     plt.figure()
     plt.plot(blist, label='Loss_D')
@@ -327,4 +293,4 @@ for epoch in range(opt.epoch, opt.n_epochs):
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
     plt.legend()
-    plt.savefig("lossTestP2P/Training All Loss(Epoch)")
+    plt.savefig("loss/Training All Loss(Epoch)")
