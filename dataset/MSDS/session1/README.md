@@ -1,1 +1,1 @@
-文件内所有图片都是生成图片，在训练时作为真图进行训练，需要原数据请在dataset_url.txt进行下载。
+All images in the document are generated images, which were used as true images during training. If you need the original data, please download it from the dataset_url.txt.
