@@ -126,12 +126,6 @@ matplotlib.use('Agg')
 # ----------
 #  Training
 # ----------
-# if is_pretrain:
-#         checkpoint_G_AB = torch.load("save/generator.pth")
-#         generator.load_state_dict(checkpoint_G)
-#
-#         checkpoint_D_A = torch.load("save/discriminator.pth")
-#         discriminator.load_state_dict(checkpoint_D)
 
 prev_time = time.time()
 Loss_D_list = []
